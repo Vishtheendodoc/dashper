@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Callable, Tuple
 import warnings
 import threading
 import logging
+from functools import wraps
 from dataclasses import dataclass
 from enum import Enum
 warnings.filterwarnings('ignore')
@@ -53,6 +54,7 @@ class DhanAPIClient:
         self.websocket = None
         self.is_connected = False
 
+    @rate_limit_handler(max_retries=3, delay=1)
     def get_historical_data(self, security_id: str, exchange_segment: str, 
                            instrument: str, from_date: str, to_date: str,
                            expiry_code: int = 0, oi: bool = False) -> Optional[Dict]:
@@ -79,6 +81,7 @@ class DhanAPIClient:
             st.error(f"Historical data request failed: {e}")
             return None
 
+    @rate_limit_handler(max_retries=3, delay=1)
     def get_intraday_data(self, security_id: str, exchange_segment: str,
                          instrument: str, interval: str, from_date: str, 
                          to_date: str, oi: bool = False) -> Optional[Dict]:
@@ -104,7 +107,8 @@ class DhanAPIClient:
         except Exception as e:
             st.error(f"Intraday data request failed: {e}")
             return None
-
+    
+    @rate_limit_handler(max_retries=3, delay=2)
     def get_market_quote_ltp(self, instruments: Dict[str, List[int]]) -> Optional[Dict]:
         """Fetch LTP for multiple instruments"""
         url = f"{self.base_url}/marketfeed/ltp"
@@ -120,6 +124,29 @@ class DhanAPIClient:
             st.error(f"Market quote LTP request failed: {e}")
             return None
 
+    
+
+    def rate_limit_handler(max_retries=3, delay=1):
+        """Decorator to handle rate limiting with exponential backoff"""
+        def decorator(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                for attempt in range(max_retries):
+                    try:
+                        result = func(*args, **kwargs)
+                        if result is not None:
+                            return result
+                        time.sleep(delay * (2 ** attempt))
+                    except Exception as e:
+                        if "429" in str(e) and attempt < max_retries - 1:
+                            time.sleep(delay * (2 ** attempt))
+                            continue
+                        return None
+                return None
+            return wrapper
+        return decorator
+    
+    @rate_limit_handler(max_retries=3, delay=2)
     def get_market_quote_ohlc(self, instruments: Dict[str, List[int]]) -> Optional[Dict]:
         """Fetch OHLC data for multiple instruments"""
         url = f"{self.base_url}/marketfeed/ohlc"
@@ -135,6 +162,7 @@ class DhanAPIClient:
             st.error(f"Market quote OHLC request failed: {e}")
             return None
 
+    @rate_limit_handler(max_retries=3, delay=2)  
     def get_market_depth(self, instruments: Dict[str, List[int]]) -> Optional[Dict]:
         """Fetch market depth for multiple instruments"""
         url = f"{self.base_url}/marketfeed/quote"
@@ -975,13 +1003,41 @@ with tab1:
     depth_container = st.empty()
 
     # Get live or simulated data
-    if st.session_state.connected and st.session_state.dhan_client:
-        # Try to get real data first
-        try:
+    # Get live or simulated data
+if st.session_state.connected and st.session_state.dhan_client:
+    # Try to get real data first with caching
+    try:
+        cache_key = f"{selected_stock}_{datetime.now().strftime('%H:%M')}"
+        
+        if 'api_cache' not in st.session_state:
+            st.session_state.api_cache = {}
+            
+        if cache_key not in st.session_state.api_cache or \
+           (datetime.now() - st.session_state.api_cache[cache_key]['timestamp']).seconds > 30:
+            
             instruments = {selected_stock_data['exchange']: [int(selected_stock_data['security_id'])]}
+            
+            # Stagger API calls to avoid rate limits
             ltp_data = st.session_state.dhan_client.get_market_quote_ltp(instruments)
+            time.sleep(0.5)  # Small delay between calls
+            
             ohlc_data = st.session_state.dhan_client.get_market_quote_ohlc(instruments)
+            time.sleep(0.5)
+            
             depth_data = st.session_state.dhan_client.get_market_depth(instruments)
+            
+            st.session_state.api_cache[cache_key] = {
+                'ltp_data': ltp_data,
+                'ohlc_data': ohlc_data, 
+                'depth_data': depth_data,
+                'timestamp': datetime.now()
+            }
+        else:
+            # Use cached data
+            cached = st.session_state.api_cache[cache_key]
+            ltp_data = cached['ltp_data']
+            ohlc_data = cached['ohlc_data']
+            depth_data = cached['depth_data']
 
             if ltp_data and 'data' in ltp_data:
                 # Process real DhanHQ data
@@ -990,7 +1046,7 @@ with tab1:
 
                 live_data = {
                     'symbol': selected_stock,
-                    'ltp': security_data.get('LTP', 0),
+                    'ltp': max(security_data.get('LTP', 1), 0.01),  # Ensure LTP is never 0
                     'change': security_data.get('change', 0),
                     'change_percent': security_data.get('pChange', 0),
                     'volume': security_data.get('volume', 0),
@@ -1098,9 +1154,9 @@ with tab1:
                 f"₹{live_data['ltp']:,.2f}"
             ],
             'Change': [
-                f"{((live_data.get('open', live_data['ltp']) - live_data['ltp']) / live_data['ltp'] * 100):+.2f}%",
-                f"{((live_data.get('high', live_data['ltp']) - live_data['ltp']) / live_data['ltp'] * 100):+.2f}%",
-                f"{((live_data.get('low', live_data['ltp']) - live_data['ltp']) / live_data['ltp'] * 100):+.2f}%",
+                f"{((live_data.get('open', live_data['ltp']) - live_data['ltp']) / live_data['ltp'] * 100):+.2f}%" if live_data['ltp'] != 0 else "N/A",
+                f"{((live_data.get('high', live_data['ltp']) - live_data['ltp']) / live_data['ltp'] * 100):+.2f}%" if live_data['ltp'] != 0 else "N/A",
+                f"{((live_data.get('low', live_data['ltp']) - live_data['ltp']) / live_data['ltp'] * 100):+.2f}%" if live_data['ltp'] != 0 else "N/A",
                 f"{live_data['change_percent']:+.2f}%",
                 "N/A",
                 "N/A",
@@ -1176,9 +1232,11 @@ with tab1:
             else:
                 st.info(f"ℹ️ ALERT: {alert.message}")
 
-    # Auto-refresh logic
+    # Auto-refresh logic with rate limiting
     if auto_refresh:
-        time.sleep(1)
+        # Slower refresh when connected to API to avoid rate limits
+        refresh_delay = 10 if st.session_state.connected else 5
+        time.sleep(refresh_delay)
         st.rerun()
 
 # Tab 2: Advanced Interactive Charts
