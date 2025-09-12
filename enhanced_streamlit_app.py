@@ -659,7 +659,7 @@ st.markdown("""
 @st.cache_data(ttl=60)  # Cache for 1 minute
 def get_sample_stocks():
     return [
-        {"symbol": "NIFTY", "security_id": "13", "exchange": "NSE_EQ", "name": "NIFTY 50"},
+        {"symbol": "NIFTY", "security_id": "13", "exchange": "IDX_I", "name": "NIFTY 50"},
         {"symbol": "RELIANCE", "security_id": "2885", "exchange": "NSE_EQ", "name": "Reliance Industries"},
         {"symbol": "TCS", "security_id": "11536", "exchange": "NSE_EQ", "name": "Tata Consultancy Services"},
         {"symbol": "HDFCBANK", "security_id": "1333", "exchange": "NSE_EQ", "name": "HDFC Bank"},
