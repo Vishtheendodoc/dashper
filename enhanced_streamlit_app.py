@@ -530,7 +530,7 @@ else:
     st.sidebar.error("🔴 Not Connected")
 
 st.sidebar.header("📊 Instrument Selection")
-stock_df = load_stock_csv("stock_list-3.csv")
+stock_df = load_stock_csv("stock_list.csv")
 if not stock_df.empty:
     stock_options = {f"{row['symbol']} ({row['exchange']})": row for _, row in stock_df.iterrows()}
     selected_stock_display = st.sidebar.selectbox("Select Stock", options=list(stock_options.keys()))
