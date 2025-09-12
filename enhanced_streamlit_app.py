@@ -876,13 +876,32 @@ else:
     st.sidebar.error("🔴 Not Connected - Using Demo Data")
 
 # Stock Selection
+
+@st.cache_data(ttl=300)
+def load_stock_csv(file_path: str) -> pd.DataFrame:
+    try:
+        df = pd.read_csv(file_path)
+        return df
+    except Exception as e:
+        st.error(f"Failed to load stock CSV: {e}")
+        return pd.DataFrame()
+
+# Stock Selection
 st.sidebar.header("📊 Instrument Selection")
-stocks = get_sample_stocks()
-stock_options = {f"{stock['name']} ({stock['symbol']})": stock for stock in stocks}
-selected_stock_display = st.sidebar.selectbox("Select Stock", options=list(stock_options.keys()))
-selected_stock_data = stock_options[selected_stock_display]
-selected_stock = selected_stock_data['symbol']
-st.session_state.selected_stock = selected_stock
+stock_df = load_stock_csv("stock_list.csv")  # Adjust path if needed
+
+if not stock_df.empty:
+    stock_options = {
+        f"{row['symbol']} ({row['exchange']})": row
+        for _, row in stock_df.iterrows()
+    }
+    selected_stock_display = st.sidebar.selectbox("Select Stock", options=list(stock_options.keys()))
+    selected_stock_data = stock_options[selected_stock_display]
+    selected_stock = selected_stock_data['symbol']
+    st.session_state.selected_stock = selected_stock
+else:
+    st.sidebar.error("Stock list not available or failed to load")
+
 
 # Timeframe Selection
 timeframe = st.sidebar.selectbox(
