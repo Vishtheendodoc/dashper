@@ -514,7 +514,7 @@ with st.sidebar.expander("🔑 DhanHQ API Configuration", expanded=not st.sessio
                 st.session_state.dhan_client = DhanAPIClient(client_id, access_token)
                 st.session_state.connected = True
                 st.success("✅ Connected!")
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("❌ Enter credentials")
     with col2:
