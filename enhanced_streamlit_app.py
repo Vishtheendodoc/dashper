@@ -1003,41 +1003,40 @@ with tab1:
     depth_container = st.empty()
 
     # Get live or simulated data
-    # Get live or simulated data
-if st.session_state.connected and st.session_state.dhan_client:
-    # Try to get real data first with caching
-    try:
-        cache_key = f"{selected_stock}_{datetime.now().strftime('%H:%M')}"
-        
-        if 'api_cache' not in st.session_state:
-            st.session_state.api_cache = {}
+    if st.session_state.connected and st.session_state.dhan_client:
+        # Try to get real data first with caching
+        try:
+            cache_key = f"{selected_stock}_{datetime.now().strftime('%H:%M')}"
             
-        if cache_key not in st.session_state.api_cache or \
-           (datetime.now() - st.session_state.api_cache[cache_key]['timestamp']).seconds > 30:
-            
-            instruments = {selected_stock_data['exchange']: [int(selected_stock_data['security_id'])]}
-            
-            # Stagger API calls to avoid rate limits
-            ltp_data = st.session_state.dhan_client.get_market_quote_ltp(instruments)
-            time.sleep(0.5)  # Small delay between calls
-            
-            ohlc_data = st.session_state.dhan_client.get_market_quote_ohlc(instruments)
-            time.sleep(0.5)
-            
-            depth_data = st.session_state.dhan_client.get_market_depth(instruments)
-            
-            st.session_state.api_cache[cache_key] = {
-                'ltp_data': ltp_data,
-                'ohlc_data': ohlc_data, 
-                'depth_data': depth_data,
-                'timestamp': datetime.now()
-            }
-        else:
-            # Use cached data
-            cached = st.session_state.api_cache[cache_key]
-            ltp_data = cached['ltp_data']
-            ohlc_data = cached['ohlc_data']
-            depth_data = cached['depth_data']
+            if 'api_cache' not in st.session_state:
+                st.session_state.api_cache = {}
+                
+            if cache_key not in st.session_state.api_cache or \
+               (datetime.now() - st.session_state.api_cache[cache_key]['timestamp']).seconds > 30:
+                
+                instruments = {selected_stock_data['exchange']: [int(selected_stock_data['security_id'])]}
+                
+                # Stagger API calls to avoid rate limits
+                ltp_data = st.session_state.dhan_client.get_market_quote_ltp(instruments)
+                time.sleep(0.5)  # Small delay between calls
+                
+                ohlc_data = st.session_state.dhan_client.get_market_quote_ohlc(instruments)
+                time.sleep(0.5)
+                
+                depth_data = st.session_state.dhan_client.get_market_depth(instruments)
+                
+                st.session_state.api_cache[cache_key] = {
+                    'ltp_data': ltp_data,
+                    'ohlc_data': ohlc_data, 
+                    'depth_data': depth_data,
+                    'timestamp': datetime.now()
+                }
+            else:
+                # Use cached data
+                cached = st.session_state.api_cache[cache_key]
+                ltp_data = cached['ltp_data']
+                ohlc_data = cached['ohlc_data']
+                depth_data = cached['depth_data']
 
             if ltp_data and 'data' in ltp_data:
                 # Process real DhanHQ data
