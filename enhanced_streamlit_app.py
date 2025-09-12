@@ -514,7 +514,7 @@ with st.sidebar.expander("🔑 DhanHQ API Configuration", expanded=not st.sessio
                 st.session_state.dhan_client = DhanAPIClient(client_id, access_token)
                 st.session_state.connected = True
                 st.success("✅ Connected!")
-                st.rerun()
+                st.experimental_rerun()
             else:
                 st.error("❌ Enter credentials")
     with col2:
@@ -532,7 +532,7 @@ else:
 st.sidebar.header("📊 Instrument Selection")
 stock_df = load_stock_csv("stock_list.csv")
 if not stock_df.empty:
-    stock_options = {f"{row['symbol']} ({row['exchange']})": row for _, row in stock_df.iterrows()}
+    stock_options = {f"{row['symbol']} ({row['exchange_segment']})": row for _, row in stock_df.iterrows()}
     selected_stock_display = st.sidebar.selectbox("Select Stock", options=list(stock_options.keys()))
     selected_stock_data = stock_options[selected_stock_display]
     selected_stock = selected_stock_data['symbol']
@@ -595,7 +595,7 @@ with tab1:
                 st.session_state.api_cache = {}
             if cache_key not in st.session_state.api_cache or \
                (datetime.now() - st.session_state.api_cache[cache_key]['timestamp']).seconds > 30:
-                instruments = {selected_stock_data['exchange']: [int(selected_stock_data['security_id'])]}
+                instruments = {selected_stock_data['exchange_segment']: [int(selected_stock_data['security_id'])]}
                 ltp_data = st.session_state.dhan_client.get_market_quote_ltp(instruments)
                 time.sleep(0.5)
                 ohlc_data = st.session_state.dhan_client.get_market_quote_ohlc(instruments)
@@ -616,7 +616,7 @@ with tab1:
             if ltp_data is None or 'data' not in ltp_data:
                 st.error("Could not fetch live LTP data.")
                 st.stop()
-            exchange_data = ltp_data['data'].get(selected_stock_data['exchange'], {})
+            exchange_data = ltp_data['data'].get(selected_stock_data['exchange_segment'], {})
             security_data = exchange_data.get(int(selected_stock_data['security_id']), {})
             live_data = {
                 'symbol': selected_stock,
@@ -627,7 +627,7 @@ with tab1:
                 'timestamp': datetime.now().strftime('%H:%M:%S')
             }
             if ohlc_data and 'data' in ohlc_data:
-                ohlc_exchange_data = ohlc_data['data'].get(selected_stock_data['exchange'], {})
+                ohlc_exchange_data = ohlc_data['data'].get(selected_stock_data['exchange_segment'], {})
                 ohlc_security_data = ohlc_exchange_data.get(int(selected_stock_data['security_id']), {})
                 live_data.update({
                     'open': ohlc_security_data.get('open', live_data['ltp']),
@@ -697,7 +697,7 @@ with tab1:
         st.subheader("📊 Market Depth (Level 2)")
         try:
             if depth_data and 'data' in depth_data:
-                exch_data = depth_data['data'].get(selected_stock_data['exchange'], {})
+                exch_data = depth_data['data'].get(selected_stock_data['exchange_segment'], {})
                 sec_data = exch_data.get(int(selected_stock_data['security_id']), {})
                 bid_orders = sec_data.get('buy', [])
                 ask_orders = sec_data.get('sell', [])
