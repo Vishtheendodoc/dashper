@@ -38,6 +38,26 @@ def load_stock_csv(file_path: str) -> pd.DataFrame:
 # DHANQ API INTEGRATION CLASSES
 # ==========================================
 
+def rate_limit_handler(max_retries=3, delay=1):
+        """Decorator to handle rate limiting with exponential backoff"""
+        def decorator(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                for attempt in range(max_retries):
+                    try:
+                        result = func(*args, **kwargs)
+                        if result is not None:
+                            return result
+                        time.sleep(delay * (2 ** attempt))
+                    except Exception as e:
+                        if "429" in str(e) and attempt < max_retries - 1:
+                            time.sleep(delay * (2 ** attempt))
+                            continue
+                        return None
+                return None
+            return wrapper
+        return decorator
+
 class DhanAPIClient:
     """DhanHQ API Client for trading operations"""
 
@@ -124,27 +144,6 @@ class DhanAPIClient:
             st.error(f"Market quote LTP request failed: {e}")
             return None
 
-    
-
-    def rate_limit_handler(max_retries=3, delay=1):
-        """Decorator to handle rate limiting with exponential backoff"""
-        def decorator(func):
-            @wraps(func)
-            def wrapper(*args, **kwargs):
-                for attempt in range(max_retries):
-                    try:
-                        result = func(*args, **kwargs)
-                        if result is not None:
-                            return result
-                        time.sleep(delay * (2 ** attempt))
-                    except Exception as e:
-                        if "429" in str(e) and attempt < max_retries - 1:
-                            time.sleep(delay * (2 ** attempt))
-                            continue
-                        return None
-                return None
-            return wrapper
-        return decorator
     
     @rate_limit_handler(max_retries=3, delay=2)
     def get_market_quote_ohlc(self, instruments: Dict[str, List[int]]) -> Optional[Dict]:
