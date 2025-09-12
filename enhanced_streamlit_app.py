@@ -24,6 +24,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+@st.cache_data(ttl=300)
+def load_stock_csv(file_path: str) -> pd.DataFrame:
+    try:
+        df = pd.read_csv(file_path)
+        return df
+    except Exception as e:
+        st.error(f"Failed to load stock CSV: {e}")
+        return pd.DataFrame()
+
 # ==========================================
 # DHANQ API INTEGRATION CLASSES
 # ==========================================
@@ -877,14 +886,7 @@ else:
 
 # Stock Selection
 
-@st.cache_data(ttl=300)
-def load_stock_csv(file_path: str) -> pd.DataFrame:
-    try:
-        df = pd.read_csv(file_path)
-        return df
-    except Exception as e:
-        st.error(f"Failed to load stock CSV: {e}")
-        return pd.DataFrame()
+
 
 # Stock Selection
 st.sidebar.header("📊 Instrument Selection")
