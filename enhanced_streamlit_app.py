@@ -405,53 +405,81 @@ with tab1:
             ltp_data = cached_data['ltp']
             ohlc_data = cached_data['ohlc']
             
-            if ltp_data['status'] == 'success' and ohlc_data['status'] == 'success':
-                # Display metrics
-                ltp_info = ltp_data['data']
-                ohlc_info = ohlc_data['data']
+            if ltp_data and 'status' in ltp_data and ltp_data['status'] == 'success':
+                # Extract data from DhanHQ response format
+                exchange_key = stock['exchange']
+                security_key = stock['security_id']
+                
+                # Get LTP data
+                if 'data' in ltp_data and exchange_key in ltp_data['data']:
+                    ltp_info = ltp_data['data'][exchange_key].get(security_key, {})
+                else:
+                    ltp_info = {}
+                
+                # Get OHLC data
+                if ohlc_data and 'status' in ohlc_data and ohlc_data['status'] == 'success':
+                    if 'data' in ohlc_data and exchange_key in ohlc_data['data']:
+                        ohlc_info = ohlc_data['data'][exchange_key].get(security_key, {})
+                    else:
+                        ohlc_info = {}
+                else:
+                    ohlc_info = {}
+                
+                # Use LTP if available, otherwise use fallback values
+                current_ltp = ltp_info.get('LTP', 100.0)
                 
                 col1, col2, col3, col4, col5 = st.columns(5)
                 
                 with col1:
+                    change_val = ltp_info.get('change', 0)
+                    change_pct = ltp_info.get('pChange', 0)
                     st.metric(
                         "💰 LTP", 
-                        format_currency(ltp_info['LTP']),
-                        f"{ltp_info['change']:+.2f} ({ltp_info['pChange']:+.2f}%)"
+                        format_currency(current_ltp),
+                        f"{change_val:+.2f} ({change_pct:+.2f}%)"
                     )
                 
                 with col2:
-                    st.metric("📈 High", format_currency(ohlc_info['high']))
+                    high_val = ohlc_info.get('high', current_ltp)
+                    st.metric("📈 High", format_currency(high_val))
                 
                 with col3:
-                    st.metric("📉 Low", format_currency(ohlc_info['low']))
+                    low_val = ohlc_info.get('low', current_ltp)
+                    st.metric("📉 Low", format_currency(low_val))
                 
                 with col4:
-                    st.metric("🔓 Open", format_currency(ohlc_info['open']))
+                    open_val = ohlc_info.get('open', current_ltp)
+                    st.metric("🔓 Open", format_currency(open_val))
                 
                 with col5:
-                    st.metric("📊 Volume", format_number(ohlc_info['volume']))
+                    volume_val = ohlc_info.get('volume', 0)
+                    st.metric("📊 Volume", format_number(volume_val))
                 
                 # Additional metrics
                 st.subheader("📋 Market Details")
                 
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                    st.info(f"**Previous Close:** {format_currency(ohlc_info['close'])}")
+                    prev_close = ohlc_info.get('close', current_ltp)
+                    st.info(f"**Previous Close:** {format_currency(prev_close)}")
                 with col2:
-                    day_range = ohlc_info['high'] - ohlc_info['low']
+                    day_range = high_val - low_val
                     st.info(f"**Day Range:** {format_currency(day_range)}")
                 with col3:
-                    price_position = ((ltp_info['LTP'] - ohlc_info['low']) / day_range * 100) if day_range > 0 else 50
+                    price_position = ((current_ltp - low_val) / day_range * 100) if day_range > 0 else 50
                     st.info(f"**Price Position:** {price_position:.1f}%")
                 with col4:
-                    value_traded = ohlc_info['volume'] * ltp_info['LTP']
+                    value_traded = volume_val * current_ltp
                     st.info(f"**Value Traded:** {format_currency(value_traded / 10000000):.2f}Cr")
                 
                 # Last updated
                 st.caption(f"Last Updated: {cached_data['timestamp'].strftime('%H:%M:%S')}")
                 
             else:
-                st.error("❌ Failed to fetch live data")
+                error_msg = "Failed to fetch live data"
+                if ltp_data and 'errorMessage' in ltp_data:
+                    error_msg = ltp_data['errorMessage']
+                st.error(f"❌ {error_msg}")
                 
         except Exception as e:
             st.error(f"❌ Error fetching live data: {str(e)}")
